@@ -59,18 +59,51 @@ ORDER BY wt.block_height DESC LIMIT $1 OFFSET $2`,
 });
 
 // Get a transaction by hash
-app.get("/transactions/:hash", async (req, res) => {
+app.get("/transaction/:hash", async (req, res) => {
   try {
     const { hash } = req.params;
+    console.log(hash);
     const { rows } = await db.query(
-      "SELECT * FROM transactions WHERE hash = $1",
+      "SELECT * FROM wrapper_transactions WHERE id = $1",
       [hash]
     );
+
+    const inner = await db.query(
+      "SELECT * FROM public.inner_transactions WHERE wrapper_id = $1",
+      [hash]
+    );
+
     if (rows.length === 0) return res.status(404).json({ error: "Not found" });
-    res.json(rows[0]);
+    res.json({ ...rows[0], inner_transactions: inner.rows });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Error fetching transaction" });
+  }
+});
+
+app.get("/blocks", async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 50;
+    const page = parseInt(req.query.page) || 1;
+    const offset = (page - 1) * limit;
+
+    const { rows } = await db.query(
+      `SELECT 
+  b.*, 
+  (
+    SELECT COUNT(*) 
+    FROM wrapper_transactions wt 
+    WHERE wt.block_height = b.height
+  ) AS tx_count
+FROM blocks b
+ORDER BY b.height DESC LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    );
+
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch transactions" });
   }
 });
 
