@@ -1,61 +1,28 @@
 import express from "express";
 import cors from "cors";
 import { db } from "./db.js";
+import { getTransactions } from "./src/transactions.js";
 
 const app = express();
 const PORT = process.env.PORT || 3567;
 
 app.use(cors());
 
+app.get("/transactions/:address", async (req, res) => {
+  const { address } = req.params;
+
+  const limit = parseInt(req.query.limit) || 20;
+  const page = parseInt(req.query.page) || 1;
+
+  res.json(await getTransactions(address, limit, page));
+});
+
 // Get all transactions
 app.get("/transactions", async (req, res) => {
-  try {
-    const limit = parseInt(req.query.limit) || 20;
-    const page = parseInt(req.query.page) || 1;
-    const offset = (page - 1) * limit;
+  const limit = parseInt(req.query.limit) || 20;
+  const page = parseInt(req.query.page) || 1;
 
-    const countResult = await db.query(
-      "SELECT COUNT(*) FROM public.wrapper_transactions"
-    );
-    const totalCount = parseInt(countResult.rows[0].count, 10);
-
-    const { rows } = await db.query(
-      `SELECT wt.*, b.timestamp
-FROM public.wrapper_transactions wt
-LEFT JOIN public.blocks b
-  ON wt.block_height = b.height
-ORDER BY wt.block_height DESC LIMIT $1 OFFSET $2`,
-      [limit, offset]
-    );
-    const ids = rows.map((row) => row.id);
-    const { rows: innerRows } = await db.query(
-      "SELECT * FROM public.inner_transactions WHERE wrapper_id = ANY($1)",
-      [ids]
-    );
-    rows.forEach((row) => {
-      row.inner_transactions = innerRows.filter(
-        (innerRow) => innerRow.wrapper_id === row.id
-      );
-    });
-
-    rows.forEach((row) => {
-      row.inner_transactions.forEach((innerRow) => {
-        if (innerRow.kind === "ibc_msg_transfer") {
-          innerRow.data = {};
-        }
-      });
-    });
-    res.json({
-      page,
-      limit,
-      total: totalCount,
-      totalPages: Math.ceil(totalCount / limit),
-      data: rows,
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to fetch transactions" });
-  }
+  res.json(await getTransactions("", limit, page));
 });
 
 // Get a transaction by hash
