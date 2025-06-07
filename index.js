@@ -20,7 +20,11 @@ app.get("/transactions", async (req, res) => {
     const totalCount = parseInt(countResult.rows[0].count, 10);
 
     const { rows } = await db.query(
-      "SELECT * FROM public.wrapper_transactions ORDER BY block_height DESC LIMIT $1 OFFSET $2",
+      `SELECT wt.*, b.timestamp
+FROM public.wrapper_transactions wt
+LEFT JOIN public.blocks b
+  ON wt.block_height = b.height
+ORDER BY wt.block_height DESC LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
     const ids = rows.map((row) => row.id);
