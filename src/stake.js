@@ -2,8 +2,7 @@ import { db } from "../db.js";
 import BigNumber from "bignumber.js";
 
 export const getStake = async (address, epoch) => {
-  let response = {
-  };
+  let response = {};
 
   let total = {
     bonds: new BigNumber(0),
@@ -12,9 +11,11 @@ export const getStake = async (address, epoch) => {
     rewards: new BigNumber(0),
   };
 
-  const unbonds = await getUnbonds(address, epoch);
-  const bonds = await getBonds(address);
-  const rewards = await getRewards(address, epoch);
+  const [unbonds, bonds, rewards] = await Promise.all([
+    getUnbonds(address, epoch),
+    getBonds(address),
+    getRewards(address, epoch),
+  ]);
 
   const ids = [
     ...Object.keys(unbonds.unbonding || {}),
@@ -24,9 +25,16 @@ export const getStake = async (address, epoch) => {
   ];
 
   const allValidators = [...new Set(ids)];
+  const validatorRes = await db.query(`SELECT id, namada_address FROM public.validators WHERE id IN (${allValidators.join(",")})`);
+
+  const validators = validatorRes.rows.reduce((acc, validator) => {
+    acc[validator.id] = validator.namada_address;
+    return acc;
+  }, {});
 
   allValidators.forEach((validatorId) => {
     response[validatorId] = {
+      validatorAddress: validators[validatorId],
       bonds: new BigNumber(bonds[validatorId]?.raw_amount || 0),
       unbonds: new BigNumber(unbonds.unbonding[validatorId]?.raw_amount || 0),
       withdrawable: new BigNumber(
@@ -37,13 +45,18 @@ export const getStake = async (address, epoch) => {
 
     total.bonds = total.bonds.plus(response[validatorId].bonds);
     total.unbonds = total.unbonds.plus(response[validatorId].unbonds);
-    total.withdrawable = total.withdrawable.plus(response[validatorId].withdrawable);
+    total.withdrawable = total.withdrawable.plus(
+      response[validatorId].withdrawable
+    );
     total.rewards = total.rewards.plus(response[validatorId].rewards);
   });
 
-  total.total = total.bonds.plus(total.unbonds).plus(total.withdrawable).plus(total.rewards);
+  total.total = total.bonds
+    .plus(total.unbonds)
+    .plus(total.withdrawable)
+    .plus(total.rewards);
 
-  return { positions: response, total };
+  return { positions: Object.values(response), total };
 };
 
 const getUnbonds = async (address, epoch) => {
