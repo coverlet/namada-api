@@ -5,13 +5,17 @@ export const getTransactions = async (address = "", limit = 20, page = 1) => {
   try {
     const offset = (page - 1) * limit;
 
-    const countResult = await db.query(
-      "SELECT COUNT(*) FROM public.wrapper_transactions WHERE fee_payer = $1",
-      [address]
-    );
+    const dbQueryArgs = address
+      ? [
+          "SELECT COUNT(*) FROM public.wrapper_transactions WHERE fee_payer = $1",
+          [address],
+        ]
+      : ["SELECT COUNT(*) FROM public.wrapper_transactions"];
+
+    const countResult = await db.query(...dbQueryArgs);
     const totalCount = parseInt(countResult.rows[0].count, 10);
 
-    const { rows } = await db.query(
+    const dbQuerySelectArgs = address ? [
       `SELECT wt.*, b.timestamp
 FROM public.wrapper_transactions wt
 LEFT JOIN public.blocks b
@@ -19,7 +23,16 @@ LEFT JOIN public.blocks b
   WHERE wt.fee_payer = $3
 ORDER BY wt.block_height DESC LIMIT $1 OFFSET $2`,
       [limit, offset, address]
-    );
+    ] : [
+      `SELECT wt.*, b.timestamp
+FROM public.wrapper_transactions wt
+LEFT JOIN public.blocks b
+  ON wt.block_height = b.height
+ORDER BY wt.block_height DESC LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    ];
+
+    const { rows } = await db.query(...dbQuerySelectArgs);
     const ids = rows.map((row) => row.id);
     const { rows: innerRows } = await db.query(
       "SELECT * FROM public.inner_transactions WHERE wrapper_id = ANY($1)",
