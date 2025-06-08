@@ -68,6 +68,7 @@ export const getStake = async (address, epoch) => {
     unbonds: new BigNumber(0),
     withdrawable: new BigNumber(0),
     rewards: new BigNumber(0),
+    total: new BigNumber(0),
   } };
 };
 
