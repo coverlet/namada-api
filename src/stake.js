@@ -25,7 +25,11 @@ export const getStake = async (address, epoch) => {
   ];
 
   const allValidators = [...new Set(ids)];
-  const validatorRes = await db.query(`SELECT id, namada_address FROM public.validators WHERE id IN (${allValidators.join(",")})`);
+  const validatorRes = await db.query(
+    `SELECT id, namada_address FROM public.validators WHERE id IN (${allValidators.join(
+      ","
+    )})`
+  );
 
   const validators = validatorRes.rows.reduce((acc, validator) => {
     acc[validator.id] = validator.namada_address;
@@ -84,8 +88,15 @@ const getBonds = async (address) => {
 };
 
 const getRewards = async (address, epoch) => {
+  const { rows: leRows } = await db.query(
+    `SELECT * FROM public.pos_rewards WHERE owner = $1 ORDER BY epoch DESC LIMIT 1`,
+    [address]
+  );
+  const leEpoch = leRows[0].epoch;
+  const queryEpoch = leEpoch > epoch - 5 ? leEpoch : epoch;
+
   const sql = `SELECT * FROM public.pos_rewards WHERE owner = $1 AND epoch = $2`;
-  const { rows } = await db.query(sql, [address, epoch]);
+  const { rows } = await db.query(sql, [address, queryEpoch]);
   return mergePositions(rows.filter((row) => !row.claimed));
 };
 
