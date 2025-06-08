@@ -25,42 +25,50 @@ export const getStake = async (address, epoch) => {
   ];
 
   const allValidators = [...new Set(ids)];
-  const validatorRes = await db.query(
-    `SELECT id, namada_address FROM public.validators WHERE id IN (${allValidators.join(
-      ","
-    )})`
-  );
-
-  const validators = validatorRes.rows.reduce((acc, validator) => {
-    acc[validator.id] = validator.namada_address;
-    return acc;
-  }, {});
-
-  allValidators.forEach((validatorId) => {
-    response[validatorId] = {
-      validatorAddress: validators[validatorId],
-      bonds: new BigNumber(bonds[validatorId]?.raw_amount || 0),
-      unbonds: new BigNumber(unbonds.unbonding[validatorId]?.raw_amount || 0),
-      withdrawable: new BigNumber(
-        unbonds.withdrawable[validatorId]?.raw_amount || 0
-      ),
-      rewards: new BigNumber(rewards[validatorId]?.raw_amount || 0),
-    };
-
-    total.bonds = total.bonds.plus(response[validatorId].bonds);
-    total.unbonds = total.unbonds.plus(response[validatorId].unbonds);
-    total.withdrawable = total.withdrawable.plus(
-      response[validatorId].withdrawable
+  if (allValidators.length > 0) {
+    const validatorRes = await db.query(
+      `SELECT id, namada_address FROM public.validators WHERE id IN (${allValidators.join(
+        ","
+      )})`
     );
-    total.rewards = total.rewards.plus(response[validatorId].rewards);
-  });
 
-  total.total = total.bonds
-    .plus(total.unbonds)
-    .plus(total.withdrawable)
-    .plus(total.rewards);
+    const validators = validatorRes.rows.reduce((acc, validator) => {
+      acc[validator.id] = validator.namada_address;
+      return acc;
+    }, {});
 
-  return { positions: Object.values(response), total };
+    allValidators.forEach((validatorId) => {
+      response[validatorId] = {
+        validatorAddress: validators[validatorId],
+        bonds: new BigNumber(bonds[validatorId]?.raw_amount || 0),
+        unbonds: new BigNumber(unbonds.unbonding[validatorId]?.raw_amount || 0),
+        withdrawable: new BigNumber(
+          unbonds.withdrawable[validatorId]?.raw_amount || 0
+        ),
+        rewards: new BigNumber(rewards[validatorId]?.raw_amount || 0),
+      };
+  
+      total.bonds = total.bonds.plus(response[validatorId].bonds);
+      total.unbonds = total.unbonds.plus(response[validatorId].unbonds);
+      total.withdrawable = total.withdrawable.plus(
+        response[validatorId].withdrawable
+      );
+      total.rewards = total.rewards.plus(response[validatorId].rewards);
+    });
+  
+    total.total = total.bonds
+      .plus(total.unbonds)
+      .plus(total.withdrawable)
+      .plus(total.rewards);
+  
+    return { positions: Object.values(response), total };
+  }
+  return { positions: [], total: {
+    bonds: new BigNumber(0),
+    unbonds: new BigNumber(0),
+    withdrawable: new BigNumber(0),
+    rewards: new BigNumber(0),
+  } };
 };
 
 const getUnbonds = async (address, epoch) => {
@@ -92,6 +100,9 @@ const getRewards = async (address, epoch) => {
     `SELECT * FROM public.pos_rewards WHERE owner = $1 ORDER BY epoch DESC LIMIT 1`,
     [address]
   );
+  if (leRows.length === 0) {
+    return {};
+  }
   const leEpoch = leRows[0].epoch;
   const queryEpoch = leEpoch > epoch - 5 ? leEpoch : epoch;
 
