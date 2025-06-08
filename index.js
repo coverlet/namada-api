@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import { db } from "./db.js";
 import { getTransactions } from "./src/transactions.js";
+import { getStake } from "./src/stake.js";
 
 const app = express();
 const PORT = process.env.PORT || 3567;
@@ -46,6 +47,15 @@ app.get("/transaction/:hash", async (req, res) => {
     console.error(err);
     res.status(500).json({ error: "Error fetching transaction" });
   }
+});
+
+app.get("/stake/:address", async (req, res) => {
+  const epoch = parseInt(req.query.epoch) || "";
+  if (!epoch) {
+    return res.status(400).json({ error: "Missing or invalid 'epoch' query parameter" });
+  }
+  const { address } = req.params;
+  res.json(await getStake(address, epoch));
 });
 
 app.get("/blocks", async (req, res) => {
