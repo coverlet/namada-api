@@ -77,10 +77,10 @@ const getUnbonds = async (address, epoch) => {
   const { rows } = await db.query(sql, [address]);
 
   const unbonding = mergePositions(
-    rows.filter((row) => row.withdraw_epoch < epoch)
+    rows.filter((row) => row.withdraw_epoch >= epoch)
   );
   const withdrawable = mergePositions(
-    rows.filter((row) => row.withdraw_epoch >= epoch)
+    rows.filter((row) => row.withdraw_epoch < epoch)
   );
 
   return {
